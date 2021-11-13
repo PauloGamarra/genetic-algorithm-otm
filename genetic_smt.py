@@ -69,8 +69,9 @@ class SMTInstance:
             print("graph adjacency lists (L):")
             print(self.L)
 
+
 class GeneticAlgorithmSMT:
-    def __init__(self, population_size=10000, mutation_size=5, mutation_rate=0.1, elitism_size=5, reproduction_size=9990, max_generations=20):
+    def __init__(self, population_size=20, mutation_size=5, mutation_rate=0.1, elitism_size=5, reproduction_size=10, max_generations=20):
         self.population_size = population_size
         self.mutation_size = mutation_size
         self.mutation_rate = mutation_rate
@@ -91,8 +92,9 @@ class GeneticAlgorithmSMT:
 
         while(not self.stopping_condition()):
             children = self.reproduce(population, fitness, smt_instance)
-            #mutants = self.mutate_population(population + children, smt_instance)
-            #population = self.uptade_population(population, children, mutants)
+            mutants = self.mutate_population(population + children, smt_instance)
+            survivors = self.elitism(population, fitness)
+            population = self.uptade_population(survivors, children, mutants)
             best_solution, fitness = self.compute_fitness(population, smt_instance, best_solution)
             print(best_solution['solution'])
             print(best_solution['fitness'], self.generations)
@@ -117,11 +119,14 @@ class GeneticAlgorithmSMT:
             parent_1 = self.roulette_wheel(population, fitness, fitness_sum)
             parent_2 = self.roulette_wheel(population, fitness, fitness_sum)
 
-            children = self.combine_parents(parent_1, parent_2, smt_instance)
+            children[i] = self.combine_parents(parent_1, parent_2, smt_instance)
+
+        return children
 
     def roulette_wheel(self, population, fitness, fitness_sum):
-        max = fitness_sum
-        selection_probs = fitness/max
+        # selection probabilities prioritize individuals with smaller fitness
+        selection_probs = [1/x for x in fitness/fitness_sum]
+        selection_probs = [x / sum(selection_probs) for x in selection_probs]
         return population[np.random.choice(len(population), p=selection_probs)]
 
     def combine_parents(self, parent_1, parent_2, smt_instance):
@@ -133,6 +138,7 @@ class GeneticAlgorithmSMT:
         cut_vertex = random.choice(list(common_intermediate_verts))
         children = parent_1[:parent_1.index(cut_vertex)] + parent_2[parent_2.index(cut_vertex):]
 
+        # cutting loops out
         for vertex in children:
             if children.count(vertex) > 1:
                 duplicate_idx = children.index(vertex)
@@ -142,10 +148,26 @@ class GeneticAlgorithmSMT:
         return children
 
     def uptade_population(self, population, children, mutants):
-        return
+        return population + children + mutants
 
     def mutate_population(self, population, smt_instance):
-        return
+        mutants = random.sample(population, self.mutation_size)
+
+        for idx, mutant in enumerate(mutants):
+            experimenting_cuts = True
+            possible_cut_vertices = mutant[1:-1]
+            while(experimenting_cuts):
+                cut_vertex = np.random.choice(possible_cut_vertices)
+                cut_vertex_idx = mutant.index(cut_vertex)
+                possible_cut_vertices.remove(cut_vertex)
+                path_completion = random_bfs(smt_instance, mutant, mutant[cut_vertex_idx-1], mutant[cut_vertex_idx+1])
+                if path_completion != None:
+                    experimenting_cuts = False
+                    mutant[idx] = mutant[:cut_vertex_idx] + path_completion + mutant[cut_vertex_idx+1:]
+                elif len(possible_cut_vertices) == 0:
+                        experimenting_cuts = False
+
+        return mutants
 
     def compute_fitness(self, population, smt_instance, best_solution = None):
         fitness = np.zeros(self.population_size, np.uint64)
@@ -186,13 +208,24 @@ class GeneticAlgorithmSMT:
         else:
             return False
 
-def random_bfs(smt_instance, explored=[]):
-    initial_vertix = smt_instance.s
-    final_vertix = smt_instance.t
+    def elitism(self, population, fitness):
+        return [population[idx] for idx in fitness.argsort()[:self.elitism_size]]
+
+
+
+def random_bfs(smt_instance, explored=None, initial_vertix=None, final_vertix=None):
+    if initial_vertix == None:
+        initial_vertix = smt_instance.s
+    if final_vertix == None:
+        final_vertix = smt_instance.t
+
     graph = smt_instance.L
 
     # keep track of all the paths to be checked
     queue = [[initial_vertix]]
+
+    if explored == None:
+        explored = []
 
     # keeps looping until all possible paths have been checked
     while queue:
@@ -215,13 +248,7 @@ def random_bfs(smt_instance, explored=[]):
             # mark node as explored
             explored.append(node)
 
-
-def run_on_instance(instance_file_path):
-    smt_instance = SMTInstance(instance_file_path)
-    smt_instance.print_instance_info(print_graph=True)
-
-    genetic_algorithm = GeneticAlgorithmSMT()
-    genetic_algorithm.run_on_instance(smt_instance)
+    return
 
 
 def parse_opt():
@@ -230,10 +257,27 @@ def parse_opt():
                         type=str,
                         help='input instance path (.dat or folder with .dat)',
                         required=True)
+    parser.add_argument('--population_size', type=int, required=False)
+    parser.add_argument('--reproduction_size', type=int, required=False)
+    parser.add_argument('--elitism_size', type=int, required=False)
+    parser.add_argument('--mutation_size', type=int, required=False)
+    parser.add_argument('--max_generations', type=int, required=False)
+
 
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_opt()
-    run_on_instance(args.instance_path)
+    genetic_algorithm = GeneticAlgorithmSMT(population_size=args.population_size,
+                                            mutation_size=args.mutation_size,
+                                            elitism_size=args.elitism_size,
+                                            reproduction_size=args.reproduction_size,
+                                            max_generations=args.max_generations)
+
+    smt_instance = SMTInstance(args.instance_path)
+    smt_instance.print_instance_info(print_graph=True)
+
+    best_solution = genetic_algorithm.run_on_instance(smt_instance)
+
+    print('best solution found is {} with max step {}'.format(best_solution['solution'], best_solution['fitness']))
