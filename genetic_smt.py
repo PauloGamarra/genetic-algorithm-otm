@@ -1,7 +1,9 @@
 import numpy as np
 import random
 
-from pdb import set_trace as debugger()
+from tqdm import tqdm, trange
+
+from pdb import set_trace as debugger
 
 
 class GeneticAlgorithmSMT:
@@ -18,18 +20,30 @@ class GeneticAlgorithmSMT:
     def run_on_instance(self, smt_instance):
 
         self.generations = 1
+        print("initializing first population...")
         population = self.initialize_population(smt_instance)
+        debugger()
+        print("computing fitness...")
         best_solution, fitness = self.compute_fitness(population, smt_instance)
+        debugger()
         print(best_solution['solution'])
         print(best_solution['fitness'], self.generations)
         self.generations += 1
 
         while(not self.stopping_condition()):
+            print("computing children...")
             children = self.reproduce(population, fitness, smt_instance)
+            debugger()
+            print("computing mutatns...")
             mutants = self.mutate_population(population + children, smt_instance)
+            debugger()
+            print("computing survivors...")
             survivors = self.elitism(population, fitness)
+            debugger()
             population = self.uptade_population(survivors, children, mutants)
+            print("computing fitness...")
             best_solution, fitness = self.compute_fitness(population, smt_instance, best_solution)
+            debugger()
             print(best_solution['solution'])
             print(best_solution['fitness'], self.generations)
             self.generations += 1
@@ -39,7 +53,7 @@ class GeneticAlgorithmSMT:
     def initialize_population(self, smt_instance):
         population = [None] * self.population_size
 
-        for i in range(len(population)):
+        for i in trange(len(population)):
             population[i] = random_bfs(smt_instance)
 
         return population
@@ -49,7 +63,7 @@ class GeneticAlgorithmSMT:
 
         fitness_sum = np.sum(fitness)
 
-        for i in range(len(children)):
+        for i in trange(len(children)):
             parent_1 = self.roulette_wheel(population, fitness, fitness_sum)
             parent_2 = self.roulette_wheel(population, fitness, fitness_sum)
 
@@ -87,7 +101,7 @@ class GeneticAlgorithmSMT:
     def mutate_population(self, population, smt_instance):
         mutants = random.sample(population, self.mutation_size)
 
-        for idx, mutant in enumerate(mutants):
+        for idx, mutant in enumerate(tqdm(mutants)):
             experimenting_cuts = True
             possible_cut_vertices = mutant[1:-1]
             while(experimenting_cuts):
@@ -109,7 +123,7 @@ class GeneticAlgorithmSMT:
         if best_solution == None:
             best_solution={'solution': [], 'fitness': np.inf}
 
-        for idx, individual in enumerate(population):
+        for idx, individual in enumerate(tqdm(population)):
             max_step = self.max_step(individual, smt_instance)
             if max_step < best_solution['fitness']:
                 best_solution['solution'] = individual
@@ -182,3 +196,5 @@ def random_bfs(smt_instance, explored=None, initial_vertix=None, final_vertix=No
             explored.append(node)
 
     return
+
+def random_dfs(smt_instance, explored=None, initial_vertix=None, final_vertix=None):
