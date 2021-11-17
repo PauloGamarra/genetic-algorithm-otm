@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import os
 
 from tqdm import tqdm, trange
 
@@ -18,43 +19,55 @@ class GeneticAlgorithmSMT:
         assert self.population_size == self.mutation_size + self.elitism_size + self.reproduction_size
 
     def run_on_instance(self, smt_instance):
+        best_fitness_history = np.zeros(self.max_generations)
+        mean_fitness_history = np.zeros(self.max_generations)
 
-        self.generations = 1
+        self.generation = 1
         print("initializing first population...")
         population = self.initialize_population(smt_instance)
-        debugger()
         print("computing fitness...")
         best_solution, fitness = self.compute_fitness(population, smt_instance)
-        debugger()
-        print(best_solution['solution'])
-        print(best_solution['fitness'], self.generations)
-        self.generations += 1
+
+        mean_fitness = fitness.mean()
+        best_fitness_history[self.generation-1] = best_solution['fitness']
+        mean_fitness_history[self.generation-1] = mean_fitness
+
+        print('generation: {}'.format(self.generation))
+        print('best_solution: {}'.format(best_solution['solution']))
+        print('best_fitness: {}'.format(best_solution['fitness']))
+        print('mean_fitness: {}'.format(mean_fitness))
+
+        self.generation += 1
 
         while(not self.stopping_condition()):
             print("computing children...")
             children = self.reproduce(population, fitness, smt_instance)
-            debugger()
             print("computing mutatns...")
             mutants = self.mutate_population(population + children, smt_instance)
-            debugger()
             print("computing survivors...")
             survivors = self.elitism(population, fitness)
-            debugger()
             population = self.uptade_population(survivors, children, mutants)
             print("computing fitness...")
             best_solution, fitness = self.compute_fitness(population, smt_instance, best_solution)
-            debugger()
-            print(best_solution['solution'])
-            print(best_solution['fitness'], self.generations)
-            self.generations += 1
 
-        return best_solution
+            mean_fitness = fitness.mean()
+            best_fitness_history[self.generation - 1] = best_solution['fitness']
+            mean_fitness_history[self.generation - 1] = mean_fitness
+
+            print('generation: {}'.format(self.generation))
+            print('best_solution: {}'.format(best_solution['solution']))
+            print('best_fitness: {}'.format(best_solution['fitness']))
+            print('mean_fitness: {}'.format(mean_fitness))
+
+            self.generation += 1
+
+        return best_solution, best_fitness_history, mean_fitness_history
 
     def initialize_population(self, smt_instance):
         population = [None] * self.population_size
 
         for i in trange(len(population)):
-            population[i] = random_bfs(smt_instance)
+            population[i] = random_dfs(smt_instance)
 
         return population
 
@@ -111,9 +124,10 @@ class GeneticAlgorithmSMT:
                 path_completion = random_bfs(smt_instance, mutant, mutant[cut_vertex_idx-1], mutant[cut_vertex_idx+1])
                 if path_completion != None:
                     experimenting_cuts = False
-                    mutant[idx] = mutant[:cut_vertex_idx] + path_completion + mutant[cut_vertex_idx+1:]
+                    mutants[idx] = mutant[:cut_vertex_idx] + path_completion + mutant[cut_vertex_idx+1:]
                 elif len(possible_cut_vertices) == 0:
                         experimenting_cuts = False
+
 
         return mutants
 
@@ -151,7 +165,7 @@ class GeneticAlgorithmSMT:
         return max_step
 
     def stopping_condition(self):
-        if self.generations > self.max_generations:
+        if self.generation > self.max_generations:
             return True
         else:
             return False
@@ -198,3 +212,30 @@ def random_bfs(smt_instance, explored=None, initial_vertix=None, final_vertix=No
     return
 
 def random_dfs(smt_instance, explored=None, initial_vertix=None, final_vertix=None):
+    if initial_vertix == None:
+        initial_vertix = smt_instance.s
+    if final_vertix == None:
+        final_vertix = smt_instance.t
+
+    stack = [(initial_vertix, [initial_vertix])]
+
+    if explored == None:
+        explored = []
+
+    visited = set(explored)
+
+    graph = smt_instance.L
+
+    while stack:
+        (vertex, path) = stack.pop()
+        if vertex not in visited:
+            if vertex == final_vertix:
+                return path
+            visited.add(vertex)
+
+            neighbours = random.sample(graph[vertex], len(graph[vertex]))
+
+            for neighbor in neighbours:
+                stack.append((neighbor, path + [neighbor]))
+
+    return
