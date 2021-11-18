@@ -61,7 +61,11 @@ def run_experiment(args):
             smt_instance_path = os.path.join(args.instance_path, smt_instance_file)
             smt_instance = SMTInstance(smt_instance_path)
             smt_instance.print_instance_info()
+
+            start_time = time.time()
             best_solution, best_fitness_history, mean_fitness_history = genetic_algorithm.run_on_instance(smt_instance)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
 
             print('best solution for {} is {} with max step {}'.format(smt_instance_file,
                                                                         best_solution['solution'],
@@ -71,6 +75,7 @@ def run_experiment(args):
             smt_instance_dir = os.path.join(args.results_dir, smt_instance_name)
             os.mkdir(smt_instance_dir)
 
+            np.save(os.path.join(smt_instance_dir, 'elapsed_time.npy'), np.array(elapsed_time))
             np.save(os.path.join(smt_instance_dir, 'best_solution.npy'), np.array(best_solution['solution']))
             np.save(os.path.join(smt_instance_dir, 'best_fitness.npy'), np.array(best_solution['fitness']))
             np.save(os.path.join(smt_instance_dir, 'best_fitness_history.npy'), best_fitness_history)
